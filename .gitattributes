@@ -1,0 +1,12 @@
+# Handle text files automatically and normalize them to LF in the repository history
+* text=auto
+
+# Explicitly declare files that must always maintain specific line endings upon checkout
+*.bat text eol=crlf
+*.sh text eol=lf
+
+# Denote binary files (so Git knows never to touch their line endings)
+*.png binary
+*.jpg binary
+*.sqli binary
+*.sqlite binary
