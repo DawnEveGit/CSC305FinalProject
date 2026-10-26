@@ -3,3 +3,25 @@ extends layout
 block content
   h1= title
   p Welcome to #{title}
+
+  if error
+    p(style="color: red;")= error
+
+  form(action="/login", method="POST")
+    div(style="margin-bottom: 15px;")
+      label(for="userId") User ID / SSN:
+      br
+      input#userId(type="text", name="userId", required, placeholder="e.g. 987654321")
+
+    div(style="margin-bottom: 15px;")
+      label Select Role:
+      br
+      label
+        input(type="radio", name="role", value="student", checked)
+        |  Student
+      br
+      label
+        input(type="radio", name="role", value="faculty")
+        |  Faculty
+
+    button(type="submit") Submit
