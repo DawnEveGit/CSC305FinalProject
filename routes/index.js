@@ -23,6 +23,8 @@ router.post('/login', function(req, res, next) {
     res.redirect(`/faculty/${encodeURIComponent(userId)}`);
   } else if (role === 'student') {
     res.redirect(`/student/${encodeURIComponent(userId)}`);
+  } else if (role === 'registrar') {
+    res.redirect(`/registrar/${encodeURIComponent(userId)}`);
   } else {
     res.redirect('/');
   }
@@ -42,6 +44,15 @@ router.get('/student/:id', function(req, res, next) {
   const userId = req.params.id;
   res.render('student', { 
     title: 'Student Portal', 
+    id: userId 
+  });
+});
+
+/* GET Registrar role page */
+router.get('/registrar/:id', function(req, res, next) {
+  const userId = req.params.id;
+  res.render('registrar', { 
+    title: 'Registrar Portal', 
     id: userId 
   });
 });
