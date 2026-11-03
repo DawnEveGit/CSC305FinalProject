@@ -1,10 +1,21 @@
 extends layout
+include mixins
 
 block content
   h1= title
-  p Logged in Registrar ID: 
+  p Logged in Registrar ID:
     strong #{id}
-  
+
   hr
-  p Welcome to the Registrar Management Dashboard.
+  +resultTable(offerings, 'Course Offerings')
+
+  +resultTable(courses, 'Course Catalog')
+
+  +resultTable(faculty, 'Faculty')
+
+  details
+    summary
+      h2(style="display: inline;") Students (#{students.length})
+    +resultTable(students)
+
   a(href="/") &larr; Return to Login

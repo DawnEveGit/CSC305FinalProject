@@ -21,3 +21,31 @@ input[type="text"] {
     color: white;
     border-radius: 4px;
   }
+
+table {
+  border-collapse: collapse;
+  margin-bottom: 25px;
+}
+
+caption {
+  text-align: left;
+}
+
+th, td {
+  border: 1px solid #ccc;
+  padding: 6px 10px;
+  text-align: left;
+}
+
+th {
+  background-color: #e6f8ff;
+}
+
+details {
+  margin-bottom: 15px;
+}
+
+summary {
+  cursor: pointer;
+  margin-bottom: 10px;
+}

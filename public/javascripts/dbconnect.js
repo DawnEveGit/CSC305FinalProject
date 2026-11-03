@@ -1,27 +1,20 @@
-const sqlite3 = require('sqlite3'); //.verbose();
+const { DatabaseSync } = require('node:sqlite');
 
 const dbopen = (dbpath) => {
-    let db = new sqlite3.Database(dbpath, (err) => {
-        if (err) {
-            console.error(err.message);
-            throw err;
-        }
-        else {
-            console.info('Connected to database ' + dbpath);
-        }
-    });
+    const db = new DatabaseSync(dbpath);
+    console.info('Connected to database ' + dbpath);
     return db;
 };
 
 // close the database connection
-const dbclose = (db, afterCloseCallback) => { 
-    db.close((err) => {
-        if (err) {
-            return console.error(err.message);
-        }
-        console.log('Closed the database connection.');
-        afterCloseCallback();
-    });
+const dbclose = (db) => {
+    if (db.isOpen) {
+        db.close();
+        console.info('Closed the database connection.');
+    }
+    else {
+        console.error('Database was not open.');
+    }
 };
-  
+
 module.exports = { dbopen, dbclose };

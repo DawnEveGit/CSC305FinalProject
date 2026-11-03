@@ -1,10 +1,21 @@
 extends layout
+include mixins
 
 block content
   h1= title
-  p Logged in Faculty ID: 
+  p Logged in Faculty ID:
     strong #{id}
-  
+
   hr
-  p Welcome to the Faculty Management Dashboard.
+  +recordTable(faculty, 'Faculty Information')
+
+  +resultTable(offerings, 'Courses Taught')
+
+  if rosters.length > 0
+    h2 Class Rosters
+    each r in rosters
+      details
+        summary #{r.offering.Course} (#{r.offering.Offering}) &ndash; #{r.offering.Term} #{r.offering.Year}: #{r.students.length} students
+        +resultTable(r.students)
+
   a(href="/") &larr; Return to Login

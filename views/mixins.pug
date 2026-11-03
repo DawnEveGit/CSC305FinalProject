@@ -1,0 +1,29 @@
+//- Render an array of query result rows as a table, using the column names as headers
+mixin resultTable(rows, heading)
+  if rows && rows.length > 0
+    table
+      if heading
+        caption
+          h2= heading
+      tr
+        each col in Object.keys(rows[0])
+          th= col
+      each row in rows
+        tr
+          each val in row
+            td= (val === null || val === '') ? '—' : val
+  else
+    if heading
+      h2= heading
+    p No records found.
+
+//- Render a single row as a two-column (field / value) table
+mixin recordTable(record, heading)
+  table
+    if heading
+      caption
+        h2= heading
+    each val, key in record
+      tr
+        th= key
+        td= (val === null || val === '') ? '—' : val

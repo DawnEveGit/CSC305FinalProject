@@ -12,9 +12,9 @@ router.post('/login', function(req, res, next) {
   const role = req.body.role;
 
   if (!userId || !role) {
-    return res.render('index', { 
-      title: 'Portal Login', 
-      error: 'Please enter an ID and select a role.' 
+    return res.render('index', {
+      title: 'Portal Login',
+      error: 'Please enter an ID and select a role.'
     });
   }
 
@@ -33,28 +33,137 @@ router.post('/login', function(req, res, next) {
 /* GET Faculty role page */
 router.get('/faculty/:id', function(req, res, next) {
   const userId = req.params.id;
-  res.render('faculty', { 
-    title: 'Faculty Portal', 
-    id: userId 
+  const db = req.app.locals.db;
+  if (!db) {
+    return renderErrorPage(500, 'Faculty query failed to find database', res);
+  }
+
+  // Faculty SSNs are stored without dashes, so ignore any the user typed
+  const facultyQuery = 'select FacSSN as SSN, FacFirstName as "First Name", FacLastName as "Last Name", '
+                     + 'FacDept as Dept, FacRank as Rank, FacHireDate as Hired, '
+                     + 'FacCity as City, FacState as State, FacZipCode as Zip '
+                     + 'from Faculty where FacSSN = $id;';
+  const faculty = db.prepare(facultyQuery).get({ $id: digitsOnly(userId) });
+  if (!faculty) {
+    return renderLoginError(`No faculty member with ID ${userId}`, res);
+  }
+
+  const offeringsQuery = 'select OfferNo as Offering, CourseNo as Course, CrsDesc as Description, '
+                       + 'OffTerm as Term, OffYear as Year, OffDays as Days, OffTime as Time, '
+                       + 'OffLocation as Location, count(StdSSN) as Enrolled '
+                       + 'from Offering natural join Course left join Enrollment using (OfferNo) '
+                       + 'where FacSSN = $id '
+                       + 'group by OfferNo order by OffYear, OffTerm, CourseNo;';
+  const offerings = db.prepare(offeringsQuery).all({ $id: faculty.SSN });
+
+  const rosterQuery = 'select StdSSN as SSN, StdFirstName as "First Name", StdLastName as "Last Name", '
+                    + 'StdMajor as Major, StdClass as Class, EnrGrade as Grade '
+                    + 'from Enrollment natural join Student '
+                    + 'where OfferNo = $offerNo order by StdLastName, StdFirstName;';
+  const rosterStmt = db.prepare(rosterQuery);
+  const rosters = offerings.map((off) => ({
+    offering: off,
+    students: rosterStmt.all({ $offerNo: off.Offering })
+  }));
+
+  res.render('faculty', {
+    title: `Welcome, ${faculty['First Name']} ${faculty['Last Name']}`,
+    id: userId,
+    faculty: faculty,
+    offerings: offerings,
+    rosters: rosters
   });
 });
 
 /* GET Student role page */
 router.get('/student/:id', function(req, res, next) {
   const userId = req.params.id;
-  res.render('student', { 
-    title: 'Student Portal', 
-    id: userId 
+  const db = req.app.locals.db;
+  if (!db) {
+    return renderErrorPage(500, 'Student query failed to find database', res);
+  }
+
+  // Student SSNs are stored with dashes, so compare digits only
+  const studentQuery = 'select StdSSN as SSN, StdFirstName as "First Name", StdLastName as "Last Name", '
+                     + 'StdMajor as Major, StdClass as Class, StdGPA as GPA, '
+                     + 'StdCity as City, StdState as State, StdZip as Zip '
+                     + "from Student where replace(StdSSN, '-', '') = $id;";
+  const student = db.prepare(studentQuery).get({ $id: digitsOnly(userId) });
+  if (!student) {
+    return renderLoginError(`No student with ID ${userId}`, res);
+  }
+
+  const enrollmentQuery = 'select OfferNo as Offering, CourseNo as Course, CrsDesc as Description, '
+                        + 'CrsUnits as Units, OffTerm as Term, OffYear as Year, OffDays as Days, '
+                        + 'OffTime as Time, OffLocation as Location, '
+                        + "coalesce(FacFirstName || ' ' || FacLastName, 'TBA') as Instructor, "
+                        + 'EnrGrade as Grade '
+                        + 'from Enrollment natural join Offering natural join Course '
+                        + 'left join Faculty using (FacSSN) '
+                        + 'where StdSSN = $ssn order by OffYear, OffTerm, CourseNo;';
+  const enrollments = db.prepare(enrollmentQuery).all({ $ssn: student.SSN });
+
+  res.render('student', {
+    title: `Welcome, ${student['First Name']} ${student['Last Name']}`,
+    id: userId,
+    student: student,
+    enrollments: enrollments
   });
 });
 
 /* GET Registrar role page */
 router.get('/registrar/:id', function(req, res, next) {
   const userId = req.params.id;
-  res.render('registrar', { 
-    title: 'Registrar Portal', 
-    id: userId 
+  const db = req.app.locals.db;
+  if (!db) {
+    return renderErrorPage(500, 'Registrar query failed to find database', res);
+  }
+
+  const offeringsQuery = 'select OfferNo as Offering, CourseNo as Course, CrsDesc as Description, '
+                       + 'OffTerm as Term, OffYear as Year, OffDays as Days, OffTime as Time, '
+                       + 'OffLocation as Location, '
+                       + "coalesce(FacFirstName || ' ' || FacLastName, 'TBA') as Instructor, "
+                       + '(select count(*) from Enrollment e where e.OfferNo = Offering.OfferNo) as Enrolled '
+                       + 'from Offering natural join Course left join Faculty using (FacSSN) '
+                       + 'order by OffYear, OffTerm, CourseNo;';
+  const coursesQuery = 'select CourseNo as Course, CrsDesc as Description, CrsUnits as Units '
+                     + 'from Course order by CourseNo;';
+  const facultyQuery = 'select FacSSN as SSN, FacFirstName as "First Name", FacLastName as "Last Name", '
+                     + 'FacDept as Dept, FacRank as Rank, FacHireDate as Hired '
+                     + 'from Faculty order by FacLastName, FacFirstName;';
+  const studentsQuery = 'select StdSSN as SSN, StdFirstName as "First Name", StdLastName as "Last Name", '
+                      + 'StdMajor as Major, StdClass as Class, StdGPA as GPA '
+                      + 'from Student order by StdLastName, StdFirstName;';
+
+  res.render('registrar', {
+    title: 'Registrar Portal',
+    id: userId,
+    offerings: db.prepare(offeringsQuery).all(),
+    courses: db.prepare(coursesQuery).all(),
+    faculty: db.prepare(facultyQuery).all(),
+    students: db.prepare(studentsQuery).all()
   });
 });
+
+function digitsOnly(id) {
+  return String(id).replace(/\D/g, '');
+}
+
+function renderLoginError(msg, res) {
+  res.status(404).render('index', {
+    title: 'Portal Login',
+    error: msg
+  });
+}
+
+function renderErrorPage(code, msg, res) {
+  res.status(code).render('error', {
+    message: msg,
+    error: {
+      status: code,
+      stack: null
+    }
+  });
+}
 
 module.exports = router;
