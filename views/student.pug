@@ -7,8 +7,15 @@ block content
     strong #{id}
 
   hr
+  if message
+    p.message= message
+  if error
+    p.error= error
+
   +recordTable(student, 'Student Information')
 
-  +resultTable(enrollments, 'Enrolled Courses')
+  +offeringActionTable(enrollments, 'Enrolled Courses', `/student/${encodeURIComponent(id)}/drop`, 'Drop', 'Drop')
+
+  +offeringActionTable(available, 'Available Courses', `/student/${encodeURIComponent(id)}/add`, 'Add')
 
   a(href="/") &larr; Return to Login

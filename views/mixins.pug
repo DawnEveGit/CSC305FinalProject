@@ -27,3 +27,28 @@ mixin recordTable(record, heading)
       tr
         th= key
         td= (val === null || val === '') ? '—' : val
+
+
+//- Like resultTable, but adds a button on each row that POSTs that row's offering number
+mixin offeringActionTable(rows, heading, action, buttonLabel, confirmMsg)
+  if rows && rows.length > 0
+    table
+      if heading
+        caption
+          h2= heading
+      tr
+        each col in Object.keys(rows[0])
+          th= col
+        th
+      each row in rows
+        tr
+          each val in row
+            td= (val === null || val === '') ? '—' : val
+          td
+            form(action=action, method="POST", onsubmit=confirmMsg ? `return confirm('${confirmMsg} ${row.Course} (offering ${row.Offering})?');` : false)
+              input(type="hidden", name="offerNo", value=row.Offering)
+              button(type="submit")= buttonLabel
+  else
+    if heading
+      h2= heading
+    p No records found.

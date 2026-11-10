@@ -83,12 +83,7 @@ router.get('/student/:id', function(req, res, next) {
     return renderErrorPage(500, 'Student query failed to find database', res);
   }
 
-  // Student SSNs are stored with dashes, so compare digits only
-  const studentQuery = 'select StdSSN as SSN, StdFirstName as "First Name", StdLastName as "Last Name", '
-                     + 'StdMajor as Major, StdClass as Class, StdGPA as GPA, '
-                     + 'StdCity as City, StdState as State, StdZip as Zip '
-                     + "from Student where replace(StdSSN, '-', '') = $id;";
-  const student = db.prepare(studentQuery).get({ $id: digitsOnly(userId) });
+  const student = findStudent(db, userId);
   if (!student) {
     return renderLoginError(`No student with ID ${userId}`, res);
   }
@@ -103,12 +98,92 @@ router.get('/student/:id', function(req, res, next) {
                         + 'where StdSSN = $ssn order by OffYear, OffTerm, CourseNo;';
   const enrollments = db.prepare(enrollmentQuery).all({ $ssn: student.SSN });
 
+  // Offerings the student could add: not already enrolled in that offering,
+  // and not already enrolled in another section of the same course that term
+  const availableQuery = 'select OfferNo as Offering, CourseNo as Course, CrsDesc as Description, '
+                       + 'CrsUnits as Units, OffTerm as Term, OffYear as Year, OffDays as Days, '
+                       + 'OffTime as Time, OffLocation as Location, '
+                       + "coalesce(FacFirstName || ' ' || FacLastName, 'TBA') as Instructor "
+                       + 'from Offering o natural join Course left join Faculty using (FacSSN) '
+                       + 'where not exists (select * from Enrollment e natural join Offering o2 '
+                       + '                  where e.StdSSN = $ssn '
+                       + '                    and o2.CourseNo = o.CourseNo '
+                       + '                    and o2.OffTerm = o.OffTerm '
+                       + '                    and o2.OffYear = o.OffYear) '
+                       + 'order by OffYear, OffTerm, CourseNo;';
+  const available = db.prepare(availableQuery).all({ $ssn: student.SSN });
+
   res.render('student', {
     title: `Welcome, ${student['First Name']} ${student['Last Name']}`,
     id: userId,
     student: student,
-    enrollments: enrollments
+    enrollments: enrollments,
+    available: available,
+    message: req.query.message,
+    error: req.query.error
   });
+});
+
+/* POST Student add course */
+router.post('/student/:id/add', function(req, res, next) {
+  const userId = req.params.id;
+  const db = req.app.locals.db;
+  if (!db) {
+    return renderErrorPage(500, 'Add course failed to find database', res);
+  }
+  const student = findStudent(db, userId);
+  if (!student) {
+    return renderLoginError(`No student with ID ${userId}`, res);
+  }
+
+  const offerNo = parseInt(req.body.offerNo, 10);
+  const offering = db.prepare('select OfferNo, CourseNo, OffTerm, OffYear from Offering '
+                              + 'where OfferNo = $offerNo;').get({ $offerNo: offerNo });
+  if (!offering) {
+    return redirectToStudent(res, userId, { error: `Offering ${req.body.offerNo} does not exist.` });
+  }
+
+  const conflictQuery = 'select OfferNo from Enrollment natural join Offering '
+                      + 'where StdSSN = $ssn and CourseNo = $course '
+                      + 'and OffTerm = $term and OffYear = $year;';
+  const conflict = db.prepare(conflictQuery).get({ $ssn: student.SSN,
+                                                   $course: offering.CourseNo,
+                                                   $term: offering.OffTerm,
+                                                   $year: offering.OffYear });
+  if (conflict) {
+    const msg = conflict.OfferNo === offerNo
+      ? `You are already enrolled in offering ${offerNo}.`
+      : `You are already enrolled in ${offering.CourseNo} for ${offering.OffTerm} ${offering.OffYear} (offering ${conflict.OfferNo}).`;
+    return redirectToStudent(res, userId, { error: msg });
+  }
+
+  const sql = 'insert into Enrollment (OfferNo, StdSSN, EnrGrade) values ($offerNo, $ssn, null);';
+  const changes = db.prepare(sql).run({ $offerNo: offerNo, $ssn: student.SSN });
+  console.info(`Adding course changed ${changes.changes} row(s)`);
+  redirectToStudent(res, userId, { message: `Added ${offering.CourseNo} (offering ${offerNo}).` });
+});
+
+/* POST Student drop course */
+router.post('/student/:id/drop', function(req, res, next) {
+  const userId = req.params.id;
+  const db = req.app.locals.db;
+  if (!db) {
+    return renderErrorPage(500, 'Drop course failed to find database', res);
+  }
+  const student = findStudent(db, userId);
+  if (!student) {
+    return renderLoginError(`No student with ID ${userId}`, res);
+  }
+
+  // Only delete this student's enrollment, never anyone else's
+  const offerNo = parseInt(req.body.offerNo, 10);
+  const sql = 'delete from Enrollment where OfferNo = $offerNo and StdSSN = $ssn;';
+  const changes = db.prepare(sql).run({ $offerNo: offerNo, $ssn: student.SSN });
+  console.info(`Dropping course changed ${changes.changes} row(s)`);
+  if (changes.changes === 0) {
+    return redirectToStudent(res, userId, { error: `You are not enrolled in offering ${req.body.offerNo}.` });
+  }
+  redirectToStudent(res, userId, { message: `Dropped offering ${offerNo}.` });
 });
 
 /* GET Registrar role page */
@@ -147,6 +222,21 @@ router.get('/registrar/:id', function(req, res, next) {
 
 function digitsOnly(id) {
   return String(id).replace(/\D/g, '');
+}
+
+// Student SSNs are stored with dashes, so compare digits only
+function findStudent(db, userId) {
+  const studentQuery = 'select StdSSN as SSN, StdFirstName as "First Name", StdLastName as "Last Name", '
+                     + 'StdMajor as Major, StdClass as Class, StdGPA as GPA, '
+                     + 'StdCity as City, StdState as State, StdZip as Zip '
+                     + "from Student where replace(StdSSN, '-', '') = $id;";
+  return db.prepare(studentQuery).get({ $id: digitsOnly(userId) });
+}
+
+// Redirect after a change so refreshing the page doesn't repeat it
+function redirectToStudent(res, userId, params) {
+  const query = new URLSearchParams(params).toString();
+  res.redirect(`/student/${encodeURIComponent(userId)}?${query}`);
 }
 
 function renderLoginError(msg, res) {

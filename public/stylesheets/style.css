@@ -49,3 +49,13 @@ summary {
   cursor: pointer;
   margin-bottom: 10px;
 }
+
+.message {
+  color: green;
+  font-weight: bold;
+}
+
+.error {
+  color: red;
+  font-weight: bold;
+}
