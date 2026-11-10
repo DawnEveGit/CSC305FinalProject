@@ -1,6 +1,10 @@
 var express = require('express');
 var router = express.Router();
 
+// Students may only add offerings in the current registration term
+const CURRENT_TERM = 'WINTER';
+const CURRENT_YEAR = 2026;
+
 /* GET home page: ID and role selection form */
 router.get('/', function(req, res, next) {
   res.render('index', { title: 'Portal Login' });
@@ -98,20 +102,19 @@ router.get('/student/:id', function(req, res, next) {
                         + 'where StdSSN = $ssn order by OffYear, OffTerm, CourseNo;';
   const enrollments = db.prepare(enrollmentQuery).all({ $ssn: student.SSN });
 
-  // Offerings the student could add: not already enrolled in that offering,
-  // and not already enrolled in another section of the same course that term
+  // Offerings the student could add: in the current term and not already enrolled in
   const availableQuery = 'select OfferNo as Offering, CourseNo as Course, CrsDesc as Description, '
                        + 'CrsUnits as Units, OffTerm as Term, OffYear as Year, OffDays as Days, '
                        + 'OffTime as Time, OffLocation as Location, '
                        + "coalesce(FacFirstName || ' ' || FacLastName, 'TBA') as Instructor "
                        + 'from Offering o natural join Course left join Faculty using (FacSSN) '
-                       + 'where not exists (select * from Enrollment e natural join Offering o2 '
-                       + '                  where e.StdSSN = $ssn '
-                       + '                    and o2.CourseNo = o.CourseNo '
-                       + '                    and o2.OffTerm = o.OffTerm '
-                       + '                    and o2.OffYear = o.OffYear) '
-                       + 'order by OffYear, OffTerm, CourseNo;';
-  const available = db.prepare(availableQuery).all({ $ssn: student.SSN });
+                       + 'where o.OffTerm = $term and o.OffYear = $year '
+                       + 'and not exists (select * from Enrollment e '
+                       + '                where e.StdSSN = $ssn and e.OfferNo = o.OfferNo) '
+                       + 'order by CourseNo, OfferNo;';
+  const available = db.prepare(availableQuery).all({ $ssn: student.SSN,
+                                                     $term: CURRENT_TERM,
+                                                     $year: CURRENT_YEAR });
 
   res.render('student', {
     title: `Welcome, ${student['First Name']} ${student['Last Name']}`,
@@ -119,6 +122,7 @@ router.get('/student/:id', function(req, res, next) {
     student: student,
     enrollments: enrollments,
     available: available,
+    currentTerm: `${CURRENT_TERM} ${CURRENT_YEAR}`,
     message: req.query.message,
     error: req.query.error
   });
@@ -142,19 +146,15 @@ router.post('/student/:id/add', function(req, res, next) {
   if (!offering) {
     return redirectToStudent(res, userId, { error: `Offering ${req.body.offerNo} does not exist.` });
   }
+  if (offering.OffTerm !== CURRENT_TERM || offering.OffYear !== CURRENT_YEAR) {
+    return redirectToStudent(res, userId, {
+      error: `Offering ${offerNo} is in ${offering.OffTerm} ${offering.OffYear}; you can only add ${CURRENT_TERM} ${CURRENT_YEAR} courses.`
+    });
+  }
 
-  const conflictQuery = 'select OfferNo from Enrollment natural join Offering '
-                      + 'where StdSSN = $ssn and CourseNo = $course '
-                      + 'and OffTerm = $term and OffYear = $year;';
-  const conflict = db.prepare(conflictQuery).get({ $ssn: student.SSN,
-                                                   $course: offering.CourseNo,
-                                                   $term: offering.OffTerm,
-                                                   $year: offering.OffYear });
-  if (conflict) {
-    const msg = conflict.OfferNo === offerNo
-      ? `You are already enrolled in offering ${offerNo}.`
-      : `You are already enrolled in ${offering.CourseNo} for ${offering.OffTerm} ${offering.OffYear} (offering ${conflict.OfferNo}).`;
-    return redirectToStudent(res, userId, { error: msg });
+  const enrolledQuery = 'select OfferNo from Enrollment where StdSSN = $ssn and OfferNo = $offerNo;';
+  if (db.prepare(enrolledQuery).get({ $ssn: student.SSN, $offerNo: offerNo })) {
+    return redirectToStudent(res, userId, { error: `You are already enrolled in offering ${offerNo}.` });
   }
 
   const sql = 'insert into Enrollment (OfferNo, StdSSN, EnrGrade) values ($offerNo, $ssn, null);';
@@ -200,7 +200,8 @@ router.get('/registrar/:id', function(req, res, next) {
                        + "coalesce(FacFirstName || ' ' || FacLastName, 'TBA') as Instructor, "
                        + '(select count(*) from Enrollment e where e.OfferNo = Offering.OfferNo) as Enrolled '
                        + 'from Offering natural join Course left join Faculty using (FacSSN) '
-                       + 'order by OffYear, OffTerm, CourseNo;';
+                       + 'where OffTerm = $term and OffYear = $year '
+                       + 'order by CourseNo, OfferNo;';
   const coursesQuery = 'select CourseNo as Course, CrsDesc as Description, CrsUnits as Units '
                      + 'from Course order by CourseNo;';
   const facultyQuery = 'select FacSSN as SSN, FacFirstName as "First Name", FacLastName as "Last Name", '
@@ -213,7 +214,8 @@ router.get('/registrar/:id', function(req, res, next) {
   res.render('registrar', {
     title: 'Registrar Portal',
     id: userId,
-    offerings: db.prepare(offeringsQuery).all(),
+    offerings: db.prepare(offeringsQuery).all({ $term: CURRENT_TERM, $year: CURRENT_YEAR }),
+    currentTerm: `${CURRENT_TERM} ${CURRENT_YEAR}`,
     courses: db.prepare(coursesQuery).all(),
     faculty: db.prepare(facultyQuery).all(),
     students: db.prepare(studentsQuery).all()

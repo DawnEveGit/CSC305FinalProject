@@ -16,6 +16,6 @@ block content
 
   +offeringActionTable(enrollments, 'Enrolled Courses', `/student/${encodeURIComponent(id)}/drop`, 'Drop', 'Drop')
 
-  +offeringActionTable(available, 'Available Courses', `/student/${encodeURIComponent(id)}/add`, 'Add')
+  +offeringActionTable(available, `Available Courses (${currentTerm})`, `/student/${encodeURIComponent(id)}/add`, 'Add')
 
   a(href="/") &larr; Return to Login
