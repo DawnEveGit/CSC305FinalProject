@@ -1,3 +1,7 @@
+//- Show a value from a query, with a dash for null/blank
+mixin cell(val)
+  td= (val === null || val === undefined || val === '') ? '—' : val
+
 //- Render an array of query result rows as a table, using the column names as headers
 mixin resultTable(rows, heading)
   if rows && rows.length > 0
@@ -11,7 +15,7 @@ mixin resultTable(rows, heading)
       each row in rows
         tr
           each val in row
-            td= (val === null || val === '') ? '—' : val
+            +cell(val)
   else
     if heading
       h2= heading
@@ -26,11 +30,11 @@ mixin recordTable(record, heading)
     each val, key in record
       tr
         th= key
-        td= (val === null || val === '') ? '—' : val
+        +cell(val)
 
-
-//- Like resultTable, but adds a button on each row that POSTs that row's offering number
-mixin offeringActionTable(rows, heading, action, buttonLabel, confirmMsg)
+//- Like resultTable, but adds a button on each row that POSTs that row's offering number.
+//- buttonFor(row) returns { action, label, confirm } for that row, or null for no button.
+mixin offeringActionTable(rows, heading, buttonFor)
   if rows && rows.length > 0
     table
       if heading
@@ -43,12 +47,43 @@ mixin offeringActionTable(rows, heading, action, buttonLabel, confirmMsg)
       each row in rows
         tr
           each val in row
-            td= (val === null || val === '') ? '—' : val
+            +cell(val)
           td
-            form(action=action, method="POST", onsubmit=confirmMsg ? `return confirm('${confirmMsg} ${row.Course} (offering ${row.Offering})?');` : false)
-              input(type="hidden", name="offerNo", value=row.Offering)
-              button(type="submit")= buttonLabel
+            - const btn = buttonFor(row)
+            if btn
+              form(action=btn.action, method="POST", onsubmit=btn.confirm ? `return confirm('${btn.confirm} ${row.Course} (offering ${row.Offering})?');` : false)
+                input(type="hidden", name="offerNo", value=row.Offering)
+                button(type="submit", class=btn.danger ? 'danger' : false)= btn.label
   else
     if heading
       h2= heading
     p No records found.
+
+//- Like resultTable, but adds a link on each row. hrefFor(row) gives the link's URL.
+mixin linkTable(rows, heading, hrefFor, linkLabel)
+  if rows && rows.length > 0
+    table
+      if heading
+        caption
+          h2= heading
+      tr
+        each col in Object.keys(rows[0])
+          th= col
+        th
+      each row in rows
+        tr
+          each val in row
+            +cell(val)
+          td
+            a.button(href=hrefFor(row))= linkLabel
+  else
+    if heading
+      h2= heading
+    p No records found.
+
+//- Success / error banner after a change
+mixin flash(message, error)
+  if message
+    p.message= message
+  if error
+    p.error= error

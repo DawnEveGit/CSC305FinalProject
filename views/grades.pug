@@ -1,0 +1,39 @@
+extends layout
+include mixins
+
+block content
+  h1= title
+  p Logged in Faculty ID:
+    strong #{id}
+    |  (#{faculty['First Name']} #{faculty['Last Name']})
+
+  hr
+  +flash(message, error)
+
+  +recordTable(offering, 'Offering')
+
+  h2 Students
+  if students.length === 0
+    p No students are enrolled in this offering.
+  else
+    p Enter a grade from 0.0 to 4.0 for each student, or leave it blank for no grade.
+    form(action=`/faculty/${encodeURIComponent(id)}/grades/${offering.Offering}`, method="POST")
+      table
+        tr
+          th Student Name
+          th Student ID
+          th Current Grade
+          th New Grade
+        each s in students
+          tr
+            td= s['Student Name']
+            td= s['Student ID']
+            +cell(s.Grade)
+            td
+              input.grade(type="number", name=`grade_${s['Student ID']}`, value=s.Grade === null ? '' : s.Grade,
+                          min="0", max="4", step="0.01", aria-label=`New grade for ${s['Student Name']}`)
+      button(type="submit") Save Grades
+
+  p
+    a(href=`/faculty/${encodeURIComponent(id)}`) &larr; Back to Courses Taught
+  a(href="/") &larr; Return to Login

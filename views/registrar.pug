@@ -1,17 +1,110 @@
 extends layout
 include mixins
 
+//- Instructor dropdown; blank means no instructor assigned yet
+mixin instructorSelect(selectedSSN, formId)
+  select(name="facSSN", form=formId, aria-label="Instructor")
+    option(value="", selected=!selectedSSN) (none / TBA)
+    each f in faculty
+      option(value=f.SSN, selected=f.SSN === selectedSSN) #{f['Last Name']}, #{f['First Name']}
+
 block content
   h1= title
   p Logged in Registrar ID:
     strong #{id}
 
   hr
-  +resultTable(offerings, `Course Offerings (${currentTerm})`)
+  +flash(message, error)
 
-  +resultTable(courses, 'Course Catalog')
+  - const base = `/registrar/${encodeURIComponent(id)}`
 
-  +resultTable(faculty, 'Faculty')
+  //- Shared suggestions for the Days fields
+  datalist#dayPatterns
+    each d in dayPatterns
+      option(value=d)
+
+  h2 Course Offerings (#{currentTerm})
+  if offerings.length === 0
+    p No offerings are scheduled for #{currentTerm}.
+  else
+    p Change an offering's instructor, location, time, or days and click Save, or click Cancel Offering to remove it from the schedule.
+    table
+      tr
+        th Offering
+        th Course
+        th Instructor
+        th Location
+        th Time
+        th Days
+        th Enrolled
+        th
+      //- Parentheses stop pug from reading "in offerings" as an "each ... of" loop
+      each o in (offerings)
+        - const formId = `edit-${o.OfferNo}`
+        tr
+          td= o.OfferNo
+          td(title=o.CrsDesc)= o.CourseNo
+          td
+            +instructorSelect(o.FacSSN, formId)
+          td
+            input.short(type="text", name="location", value=o.OffLocation, maxlength="50", form=formId, aria-label="Location")
+          td
+            input(type="time", name="time", value=o.OffTime, form=formId, aria-label="Time")
+          td
+            input.tiny(type="text", name="days", value=o.OffDays, maxlength="6", list="dayPatterns", form=formId, aria-label="Days")
+          td= o.Enrolled
+          td.actions
+            //- The inputs in this row belong to this form through their form attribute
+            form(id=formId, action=`${base}/offering/${o.OfferNo}/update`, method="POST")
+              button(type="submit") Save
+            - const warning = o.Enrolled > 0 ? ` This will also drop ${o.Enrolled} enrolled student${o.Enrolled === 1 ? '' : 's'}.` : ''
+            form(action=`${base}/offering/${o.OfferNo}/cancel`, method="POST", onsubmit=`return confirm('Cancel ${o.CourseNo} (offering ${o.OfferNo})?${warning}');`)
+              button.danger(type="submit") Cancel Offering
+
+  h2 Add a New Offering (#{currentTerm})
+  form(action=`${base}/offering/add`, method="POST")
+    table
+      caption Select a course:
+      tr
+        th
+        th Course Number
+        th Course Title
+        th Credit Hours
+      each c in courses
+        tr
+          td
+            input(type="radio", name="courseNo", value=c.CourseNo, id=`course-${c.CourseNo}`, required)
+          td
+            label(for=`course-${c.CourseNo}`)= c.CourseNo
+          td= c.CrsDesc
+          +cell(c.CrsUnits)
+
+    fieldset
+      legend Offering details
+      div.field
+        label(for="newOfferNo") Offering Number
+        input#newOfferNo(type="number", name="offerNo", min="1", max="32767", value=nextOfferNo, required)
+      div.field
+        label(for="newFacSSN") Instructor
+        select#newFacSSN(name="facSSN")
+          option(value="") (none / TBA)
+          each f in faculty
+            option(value=f.SSN) #{f['Last Name']}, #{f['First Name']}
+      div.field
+        label(for="newLocation") Location
+        input#newLocation.short(type="text", name="location", maxlength="50", placeholder="e.g. BLM302")
+      div.field
+        label(for="newTime") Time
+        input#newTime(type="time", name="time")
+      div.field
+        label(for="newDays") Days
+        input#newDays.tiny(type="text", name="days", maxlength="6", list="dayPatterns", placeholder="e.g. MW")
+      button(type="submit") Add Offering
+
+  details
+    summary
+      h2(style="display: inline;") Faculty (#{faculty.length})
+    +resultTable(faculty)
 
   details
     summary

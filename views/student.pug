@@ -7,15 +7,16 @@ block content
     strong #{id}
 
   hr
-  if message
-    p.message= message
-  if error
-    p.error= error
+  +flash(message, error)
 
   +recordTable(student, 'Student Information')
 
-  +offeringActionTable(enrollments, 'Enrolled Courses', `/student/${encodeURIComponent(id)}/drop`, 'Drop', 'Drop')
+  - const base = `/student/${encodeURIComponent(id)}`
+  - const isUpcoming = (row) => row.Term === currentTerm && row.Year === currentYear
 
-  +offeringActionTable(available, `Available Courses (${currentTerm})`, `/student/${encodeURIComponent(id)}/add`, 'Add')
+  //- Past enrollments are part of the record, so only upcoming-term courses can be dropped here
+  +offeringActionTable(enrollments, 'Enrolled Courses (All Terms)', (row) => isUpcoming(row) ? { action: `${base}/drop`, label: 'Drop', confirm: 'Drop', danger: true } : null)
+
+  +offeringActionTable(upcoming, `Courses Offered ${currentTerm} ${currentYear}`, (row) => row['In Schedule'] === 'Yes' ? { action: `${base}/drop`, label: 'Drop', confirm: 'Drop', danger: true } : { action: `${base}/add`, label: 'Add' })
 
   a(href="/") &larr; Return to Login

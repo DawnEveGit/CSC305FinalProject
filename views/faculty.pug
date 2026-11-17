@@ -7,15 +7,11 @@ block content
     strong #{id}
 
   hr
+  +flash(message, error)
+
   +recordTable(faculty, 'Faculty Information')
 
-  +resultTable(offerings, 'Courses Taught')
-
-  if rosters.length > 0
-    h2 Class Rosters
-    each r in rosters
-      details
-        summary #{r.offering.Course} (#{r.offering.Offering}) &ndash; #{r.offering.Term} #{r.offering.Year}: #{r.students.length} students
-        +resultTable(r.students)
+  p Choose a course below to view its students and edit their grades.
+  +linkTable(offerings, 'Courses Taught', (row) => `/faculty/${encodeURIComponent(id)}/grades/${row.Offering}`, 'Edit Grades')
 
   a(href="/") &larr; Return to Login

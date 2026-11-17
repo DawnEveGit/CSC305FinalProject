@@ -59,3 +59,62 @@ summary {
   color: red;
   font-weight: bold;
 }
+
+a.button {
+  display: inline-block;
+  padding: 6px 12px;
+  background-color: #00B7FF;
+  color: white;
+  border-radius: 4px;
+  text-decoration: none;
+}
+
+button.danger {
+  background-color: #d9534f;
+}
+
+td input[type="text"],
+td input[type="time"],
+td input[type="number"],
+td select {
+  margin-top: 0;
+  padding: 4px;
+}
+
+input.short {
+  width: 110px;
+}
+
+input.tiny {
+  width: 60px;
+}
+
+input.grade {
+  width: 70px;
+}
+
+td.actions form {
+  display: inline-block;
+  margin: 2px;
+}
+
+fieldset {
+  margin-bottom: 25px;
+  padding: 15px;
+  max-width: 400px;
+}
+
+.field {
+  margin-bottom: 12px;
+}
+
+.field label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.field input,
+.field select {
+  padding: 6px;
+}
